@@ -57,63 +57,58 @@ int main(void) {
 
 // Task1 function (Red)
 void task1(void *, void *, void*) {
-if (valo == 0) {   
     while (true) {
-        //k_sem_take(&sem_red, K_FOREVER);
-        gpio_pin_set_dt(&red, 1);
-        //gpio_pin_set_dt(&blue, 0);
-        gpio_pin_set_dt(&green, 0);
-        printk("Red on\n");
-        k_msleep(1000);
-        gpio_pin_set_dt(&red, 0);
-        printk("Red off\n");
-        k_msleep(500);
-        entinen = 1;
-        valo = 1;
-        //k_sem_give(&sem_yellow); // Yellow
+        if (valo == 0) {
+            gpio_pin_set_dt(&red, 1);
+            gpio_pin_set_dt(&green, 0);
+            printk("Red on\n");
+            k_msleep(1000);
+            gpio_pin_set_dt(&red, 0);
+            printk("Red off\n");
+            k_msleep(500);
+            entinen = 1;
+            valo = 1;
+        } else {
+            k_msleep(10);
+        }
     }
-}}
+}
 
-// Task2 function (Blue)
+// Task2 function (Yellow)
 void task2(void *, void *, void*) {
-    if (valo == 1) {   
-
     while (true) {
-        //k_sem_take(&sem_yellow, K_FOREVER);
-        // Yellow: red + green ON, blue OFF
-        gpio_pin_set_dt(&red, 1);
-        //gpio_pin_set_dt(&blue, 0);
-        gpio_pin_set_dt(&green, 1);
-        printk("Yellow on\n");
-        k_msleep(1000);
-        gpio_pin_set_dt(&red, 0);
-        gpio_pin_set_dt(&green, 0);
-        printk("Yellow off\n");
-        k_msleep(500);
-        entinen = 2;
-        valo = 2;
-        
-        //k_sem_give(&sem_green); // Green
+        if (valo == 1) {
+            gpio_pin_set_dt(&red, 1);
+            gpio_pin_set_dt(&green, 1);
+            printk("Yellow on\n");
+            k_msleep(1000);
+            gpio_pin_set_dt(&red, 0);
+            gpio_pin_set_dt(&green, 0);
+            printk("Yellow off\n");
+            k_msleep(500);
+            entinen = 2;
+            valo = 2;
+        } else {
+            k_msleep(10);
+        }
     }
-}}
+}
 
 // Task3 function (Green)
 void task3(void *, void *, void*) {
-    if (valo == 2) {   
-
     while (true) {
-    
-        //k_sem_take(&sem_green, K_FOREVER);
-        gpio_pin_set_dt(&red, 0);
-        //gpio_pin_set_dt(&blue, 0);
-        gpio_pin_set_dt(&green, 1);
-        printk("Green on\n");
-        k_msleep(1000);
-        gpio_pin_set_dt(&green, 0);
-        printk("Green off\n");
-        k_msleep(500);
-        entinen = 0;
-        valo = 0;
-        //k_sem_give(&sem_red); // Red
+        if (valo == 2) {
+            gpio_pin_set_dt(&red, 0);
+            gpio_pin_set_dt(&green, 1);
+            printk("Green on\n");
+            k_msleep(1000);
+            gpio_pin_set_dt(&green, 0);
+            printk("Green off\n");
+            k_msleep(500);
+            entinen = 0;
+            valo = 0;
+        } else {
+            k_msleep(10);
+        }
     }
-}}
+}
