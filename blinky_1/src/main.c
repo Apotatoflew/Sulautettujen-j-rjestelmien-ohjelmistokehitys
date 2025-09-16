@@ -1,3 +1,9 @@
+/****************************
+ Kahden pisteen yritys. Valot vaihtuu ja ajan voi määrittää  esim komennolla "R1000".
+ ****************************/
+
+
+
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/device.h>
