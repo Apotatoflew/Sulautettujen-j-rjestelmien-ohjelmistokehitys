@@ -1,0 +1,9 @@
+{
+    "nrf-connect.applications": [
+        "${workspaceFolder}\\blinky_1"
+    ],
+    "files.associations": {
+        "*.dbclient-js": "javascript",
+        "gpio.h": "c"
+    }
+}
