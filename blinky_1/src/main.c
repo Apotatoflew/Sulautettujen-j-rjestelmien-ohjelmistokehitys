@@ -1,3 +1,8 @@
+/****************************
+ Yhden pisteen yritys
+ ****************************/
+
+
 // *******************************
 // This example declares two tasks
 // and runs them in parallel
