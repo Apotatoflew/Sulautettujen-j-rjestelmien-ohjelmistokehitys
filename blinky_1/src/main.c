@@ -1,8 +1,15 @@
+/****************************
+ Kahden pisteen yritys. Valot vaihtuu ja ajan voi määrittää  esim komennolla "R1000".
+ ****************************/
+
+
+
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/timing/timing.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -30,9 +37,27 @@ struct data_t {
 static const struct gpio_dt_spec red   = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 static const struct gpio_dt_spec green = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
 
+static void testi_sekvenssi(void *unused1, void *unused2, void *unused3)
+{
+    while (true) {
+        const char *seq[] = {"R1000", "Y1000", "G1000"};
+        for (int i = 0; i < 3; i++) {
+            struct data_t *buf = k_malloc(sizeof(struct data_t));
+            if (buf == NULL) {
+                // printk("Malloc failed in testi_sekvenssi!\n");
+                return;
+            }
+            snprintf(buf->msg, sizeof(buf->msg), "%s", seq[i]);
+            k_fifo_put(&dispatcher_fifo, buf);
+            // printk("testi_sekvenssi queued: %s\n", buf->msg);
+            k_msleep(1000);
+        }
+    }
+}
+
 int init_leds(void) {
     if (!device_is_ready(red.port) || !device_is_ready(green.port)) {
-        printk("Error: LED device not ready\n");
+        // printk("Error: LED device not ready\n");
         return -1;
     }
     if (gpio_pin_configure_dt(&red, GPIO_OUTPUT_INACTIVE) < 0) return -1;
@@ -49,14 +74,18 @@ int init_uart(void) {
 
 int main(void) {
     if (init_uart() != 0) {
-        printk("UART initialization failed!\n");
+        // printk("UART initialization failed!\n");
         return -1;
     }
     if (init_leds() != 0) {
-        printk("LED init failed!\n");
+        // printk("LED init failed!\n");
         return -1;
     }
-    printk("System ready\n");
+    //Timing
+    timing_init();
+    timing_start();
+
+    // printk("System ready\n");
     return 0;
 }
 
@@ -72,24 +101,25 @@ static void uart_task(void *unused1, void *unused2, void *unused3)
 
     while (true) {
         if (uart_poll_in(uart_dev, &rc) == 0) {
-         if (rc != '\r' && rc != '\n') {
-          uart_msg[uart_msg_cnt++] = rc;
-         } else {
-           if (uart_msg_cnt > 0) {   // Only send if buffer not empty
-           struct data_t *buf = k_malloc(sizeof(struct data_t));
-        if (buf == NULL) {
-            printk("Malloc failed!\n");
-            return;
-        }
-        snprintf(buf->msg, sizeof(buf->msg), "%s", uart_msg);
-        k_fifo_put(&dispatcher_fifo, buf);
-        printk("UART msg queued: %s\n", uart_msg);
+            if (rc != '\r' && rc != '\n') {
+                uart_msg[uart_msg_cnt++] = rc;
+            } else {
+                if (uart_msg_cnt > 0) {   // Only send if buffer not empty
+                    struct data_t *buf = k_malloc(sizeof(struct data_t));
+                    if (buf == NULL) {
+                        // printk("Malloc failed!\n");
+                        return;
+                    }
+                    snprintf(buf->msg, sizeof(buf->msg), "%s", uart_msg);
+                    k_fifo_put(&dispatcher_fifo, buf);
+                    // printk("UART msg queued: %s\n", uart_msg);
 
-        // Reset buffer
-        uart_msg_cnt = 0;
-        memset(uart_msg, 0, sizeof(uart_msg));
-    }}
-}
+                    // Reset buffer
+                    uart_msg_cnt = 0;
+                    memset(uart_msg, 0, sizeof(uart_msg));
+                }
+            }
+        }
         k_msleep(10);
     }
 }
@@ -99,45 +129,75 @@ static void uart_task(void *unused1, void *unused2, void *unused3)
  */
 static void dispatcher_task(void *unused1, void *unused2, void *unused3)
 {
+    static bool sequence_started = false;
+    static timing_t seq_start_time;
+
     while (true) {
         struct data_t *rec_item = k_fifo_get(&dispatcher_fifo, K_FOREVER);
         char sequence[20];
         memcpy(sequence, rec_item->msg, sizeof(sequence));
         k_free(rec_item);
 
-        printk("Dispatcher got: %s\n", sequence);
+        // printk("Dispatcher got: %s\n", sequence);
 
-        // Parse: R1000, Y500, G2000
         char color = sequence[0];
-        int time = atoi(sequence + 1);   // read number after letter
-        printk("Parsed -> Color:%c Time:%dms\n", color, time);
+        int time = atoi(sequence + 1);   // number after letter
+        // printk("Parsed -> Color:%c Time:%dms\n", color, time);
 
+        //Start total timing when R starts
+        if (color == 'R' && !sequence_started) {
+            timing_start();
+            seq_start_time = timing_counter_get();
+            sequence_started = true;
+            // printk(">>> Sequence timing started\n");
+        }
+
+        // Reset LEDs
         gpio_pin_set_dt(&red, 0);
         gpio_pin_set_dt(&green, 0);
 
+        // Per task timing
+        timing_t task_start_time = timing_counter_get();
+
         if (color == 'R') {
             gpio_pin_set_dt(&red, 1);
-            printk("RED ON\n");
+            // printk("RED ON\n");
             k_msleep(time);
             gpio_pin_set_dt(&red, 0);
-            printk("RED OFF\n");
+            // printk("RED OFF\n");
         } else if (color == 'Y') {
             gpio_pin_set_dt(&red, 1);
             gpio_pin_set_dt(&green, 1);
-            printk("YELLOW ON\n");
+            // printk("YELLOW ON\n");
             k_msleep(time);
             gpio_pin_set_dt(&red, 0);
             gpio_pin_set_dt(&green, 0);
-            printk("YELLOW OFF\n");
+            // printk("YELLOW OFF\n");
         } else if (color == 'G') {
             gpio_pin_set_dt(&green, 1);
-            printk("GREEN ON\n");
+            // printk("GREEN ON\n");
             k_msleep(time);
             gpio_pin_set_dt(&green, 0);
-            printk("GREEN OFF\n");
+            // printk("GREEN OFF\n");
+        }
+
+        timing_t task_end_time = timing_counter_get();
+        uint64_t task_us = timing_cycles_to_ns(timing_cycles_get(&task_start_time, &task_end_time)) / 1000;
+        // printk("Task duration: %lld us\n", task_us);
+
+        // End total timing when G stops
+        if (color == 'G' && sequence_started) {
+            timing_t seq_end_time = timing_counter_get();
+            timing_stop();
+            uint64_t seq_us = timing_cycles_to_ns(timing_cycles_get(&seq_start_time, &seq_end_time)) / 1000;
+            printk(">>> Total sequence duration: %lld us\n", seq_us);
+            sequence_started = false;
         }
     }
 }
 
 K_THREAD_DEFINE(uart_thread, STACKSIZE, uart_task, NULL, NULL, NULL, PRIORITY, 0, 0);
 K_THREAD_DEFINE(dis_thread,  STACKSIZE, dispatcher_task, NULL, NULL, NULL, PRIORITY, 0, 0);
+
+//Testi sekvenssi
+K_THREAD_DEFINE(testi_thread, STACKSIZE, testi_sekvenssi, NULL, NULL, NULL, PRIORITY, 0, 0);

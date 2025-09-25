@@ -4,6 +4,7 @@
     ],
     "files.associations": {
         "*.dbclient-js": "javascript",
-        "gpio.h": "c"
+        "gpio.h": "c",
+        "stdlib.h": "c"
     }
 }
